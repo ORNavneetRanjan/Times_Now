@@ -7,6 +7,7 @@ import os
 from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)  # This allows all origins
+#.\venv\Scripts\Activate.ps1
 
 
 UPLOAD_FOLDER = 'uploads'

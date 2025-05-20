@@ -1,8 +1,11 @@
 import React, { useState } from "react";
+import { main } from "./api/main";
 
 const Form = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [aiResponse, setAiResponse] = useState("");
+  const [enhancedImage, setEnhancedImage] = useState("");
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -21,15 +24,24 @@ const Form = () => {
     const formData = new FormData();
     formData.append("image", selectedFile);
 
-    const response = await fetch("http://localhost:5000/api/check-haziness", {
-      method: "POST",
-      body: formData,
-    });
+    try {
+      const response = await fetch("http://localhost:5000/api/check-haziness", {
+        method: "POST",
+        body: formData,
+      });
 
-    const result = await response.json();
-    console.log(result);
-    alert(`Image is: ${result.status}, Blurriness: ${result.blurriness_score}`);
-    // Optional: display enhanced image using result.enhanced_image
+      const result = await response.json();
+      console.log("Flask response:", result);
+
+      // Call Gemini with Flask output
+      const aiText = await main({ result });
+      console.log(aiText);
+      setAiResponse(aiText);
+      setEnhancedImage(`data:image/jpeg;base64,${result.enhanced_image}`);
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Something went wrong.");
+    }
   };
 
   return (
@@ -39,8 +51,7 @@ const Form = () => {
 
         <label
           htmlFor="fileInput"
-          className="border-2 border-dashed border-gray-300 rounded-md p-6 text-center cursor-pointer
-           hover:border-blue-500"
+          className="border-2 border-dashed border-gray-300 rounded-md p-6 text-center cursor-pointer hover:border-blue-500"
         >
           <input
             id="fileInput"
@@ -91,6 +102,24 @@ const Form = () => {
             Continue
           </button>
         </div>
+
+        {aiResponse && (
+          <div className="mt-6">
+            <h3 className="text-md font-semibold">AI Judgment:</h3>
+            <p className="text-gray-700 mt-2">{aiResponse}</p>
+          </div>
+        )}
+
+        {enhancedImage && (
+          <div className="mt-4">
+            <h3 className="text-md font-semibold">Enhanced Image:</h3>
+            <img
+              src={enhancedImage}
+              alt="Enhanced"
+              className="mt-2 rounded max-h-64"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

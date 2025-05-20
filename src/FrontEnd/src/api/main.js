@@ -1,8 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 
-async function main() {
+export async function main({ result }) {
   const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
+    apiKey: import.meta.env.VITE_API_KEY,
   });
   const config = {
     thinkingConfig: {
@@ -11,6 +11,11 @@ async function main() {
     responseMimeType: "application/json",
   };
   const model = "gemini-2.5-flash-preview-04-17";
+  const userDescription = `
+      Please judge this image. It has a blurriness score of ${result.blurriness_score}.
+      The system classified its value as: "${result.status}".
+      The image was enhanced (base64 encoded) and may contain unclear subjects or haze.
+`;
   const contents = [
     {
       role: "user",
@@ -104,11 +109,7 @@ There *might* be extremely niche situations where such an image could be used, b
     },
     {
       role: "user",
-      parts: [
-        {
-          text: `INSERT_INPUT_HERE`,
-        },
-      ],
+      parts: [{ text: userDescription }],
     },
   ];
 
@@ -117,9 +118,10 @@ There *might* be extremely niche situations where such an image could be used, b
     config,
     contents,
   });
+  let resultText = "";
   for await (const chunk of response) {
-    console.log(chunk.text);
+    resultText += chunk;
   }
+  console.log(resultText);
+  return resultText;
 }
-
-main();
