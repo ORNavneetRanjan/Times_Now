@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { main } from "./api/main";
+
+import { judgeImageWithGemini } from "./api/main.js";
 
 const Form = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -19,27 +20,61 @@ const Form = () => {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return alert("Please select an image.");
-
-    const formData = new FormData();
-    formData.append("image", selectedFile);
+    if (!selectedFile) {
+      return alert("Please select an image.");
+    }
 
     try {
-      const response = await fetch("http://localhost:5000/api/check-haziness", {
-        method: "POST",
-        body: formData,
+      // Convert file to Base64
+      const toBase64 = (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      const imageBase64 = await toBase64(selectedFile);
+
+      // First Gemini call (raw image)
+      const initialResponse = await judgeImageWithGemini({
+        userDescription: `This is a raw image captured recently.
+          I want to find that if this image making much value to any business
+           for e.g. image without anything prominent, hazzy. 
+           Like I am making a project to identify such images for times network
+            media channel to identify images with some values that can help extract some information.`,
+        result: { imageBase64 },
       });
+      console.log("Initial Gemini judgment:", initialResponse);
 
-      const result = await response.json();
-      console.log("Flask response:", result);
+      let flaskResult = null;
+      if (/blurry|hazy|low/i.test(initialResponse)) {
+        const formData = new FormData();
+        formData.append("image", selectedFile);
 
-      // Call Gemini with Flask output
-      const aiText = await main({ result });
-      console.log(aiText);
-      setAiResponse(aiText);
-      setEnhancedImage(`data:image/jpeg;base64,${result.enhanced_image}`);
+        const response = await fetch(
+          "http://localhost:5000/api/check-haziness",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        flaskResult = await response.json();
+        console.log("Flask response:", flaskResult);
+
+        // Second Gemini call with enhanced info
+        const finalResponse = await judgeImageWithGemini({
+          userDescription: `Enhanced image details: blurriness_score=${flaskResult.blurriness_score}, status=${flaskResult.status}. Please reassess its business value.`,
+          result: flaskResult,
+        });
+        console.log("Final Gemini judgment:", finalResponse);
+        setAiResponse(finalResponse);
+        setEnhancedImage(flaskResult.enhanced_image);
+      } else {
+        setAiResponse(initialResponse);
+      }
     } catch (err) {
-      console.error("Upload error:", err);
+      console.error("Upload/processing error:", err);
       alert("Something went wrong.");
     }
   };
